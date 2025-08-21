@@ -3,14 +3,14 @@ import 'package:flutter/services.dart';
 import '../theme.dart';
 import 'dart:math' as math;
 
-class CreditScreen extends StatefulWidget {
-  const CreditScreen({super.key});
+class CreditSimulatorUltra extends StatefulWidget {
+  const CreditSimulatorUltra({super.key});
 
   @override
-  State<CreditScreen> createState() => _CreditScreenState();
+  State<CreditSimulatorUltra> createState() => _CreditSimulatorUltraState();
 }
 
-class _CreditScreenState extends State<CreditScreen>
+class _CreditSimulatorUltraState extends State<CreditSimulatorUltra>
     with TickerProviderStateMixin {
   late AnimationController _fadeController;
   late AnimationController _slideController;

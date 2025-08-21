@@ -96,7 +96,7 @@ class _AgencyMapScreenState extends State<AgencyMapScreen>
     ),
   ];
 
-  Set<Marker> _markers = {};
+  final Set<Marker> _markers = {};
 
   @override
   void initState() {
@@ -520,7 +520,7 @@ class _FilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       height: 50,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,

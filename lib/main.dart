@@ -9,7 +9,7 @@ import 'screens/claims_page.dart';
 import 'screens/cards_page.dart';
 import 'screens/backoffice_kyc.dart';
 import 'screens/savings_screen.dart';
-import 'screens/credit_screen.dart';
+import 'screens/credit_simulator_ultra.dart';
 import 'screens/insurance_screen.dart';
 import 'screens/chequebook_request_screen.dart';
 import 'screens/agency_map_screen.dart';
@@ -40,7 +40,7 @@ class MyApp extends StatelessWidget {
         '/cards': (context) => const CardsPage(),
         '/backoffice/kyc': (context) => const BackofficeKYC(),
         '/savings': (context) => const SavingsScreen(),
-        '/credit': (context) => const CreditScreen(),
+        '/credit': (context) => const CreditSimulatorUltra(),
         '/insurance': (context) => const InsuranceScreen(),
         '/chequebook': (context) => const ChequebookRequestScreen(),
         '/agencies': (context) => const AgencyMapScreen(),

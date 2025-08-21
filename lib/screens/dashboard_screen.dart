@@ -222,14 +222,20 @@ class _AccountCard extends StatelessWidget {
               style: TextStyle(color: Colors.white.withValues(alpha: 0.9)),
             ),
             const Spacer(),
-            Text(
-              hideBalance
-                  ? '•••••••• XOF'
-                  : '${account.balance.toStringAsFixed(2)} ${account.currency}',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 24,
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              transitionBuilder: (child, anim) =>
+                  FadeTransition(opacity: anim, child: child),
+              child: Text(
+                hideBalance
+                    ? '•••••••• XOF'
+                    : '${account.balance.toStringAsFixed(2)} ${account.currency}',
+                key: ValueKey<bool>(hideBalance),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 24,
+                ),
               ),
             ),
           ],

@@ -65,6 +65,16 @@ class ProfileScreen extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.pushNamed(context, '/cards'),
           ),
+          ListTile(
+            leading: const Icon(
+              Icons.receipt_long_outlined,
+              color: BduColors.primary,
+            ),
+            title: const Text('Chéquier'),
+            subtitle: const Text('Demande de chéquier'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.pushNamed(context, '/chequebook'),
+          ),
           const Divider(height: 1),
           ListTile(
             leading: const Icon(

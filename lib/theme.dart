@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class BduColors {
   static const Color primary = Color(0xFF25579A);
@@ -23,34 +24,29 @@ class BduTheme {
         surface: BduColors.neutral100,
       ),
       scaffoldBackgroundColor: BduColors.neutral100,
-      fontFamily: 'Montserrat',
-      textTheme: const TextTheme(
-        displayLarge: TextStyle(
-          fontFamily: 'Montserrat',
+      fontFamily: GoogleFonts.montserrat().fontFamily,
+      textTheme: TextTheme(
+        displayLarge: GoogleFonts.montserrat(
           fontWeight: FontWeight.bold,
           fontSize: 28,
           color: BduColors.neutral900,
         ),
-        titleLarge: TextStyle(
-          fontFamily: 'Montserrat',
+        titleLarge: GoogleFonts.montserrat(
           fontWeight: FontWeight.w600,
           fontSize: 20,
           color: BduColors.neutral900,
         ),
-        bodyLarge: TextStyle(
-          fontFamily: 'Open Sans',
-          fontWeight: FontWeight.normal,
+        bodyLarge: GoogleFonts.openSans(
+          fontWeight: FontWeight.w400,
           fontSize: 16,
           color: BduColors.neutral600,
         ),
-        bodyMedium: TextStyle(
-          fontFamily: 'Open Sans',
-          fontWeight: FontWeight.normal,
+        bodyMedium: GoogleFonts.openSans(
+          fontWeight: FontWeight.w400,
           fontSize: 14,
           color: BduColors.neutral600,
         ),
-        labelLarge: TextStyle(
-          fontFamily: 'Montserrat',
+        labelLarge: GoogleFonts.montserrat(
           fontWeight: FontWeight.w600,
           fontSize: 16,
           color: Colors.white,

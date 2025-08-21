@@ -14,8 +14,10 @@ class _CreditScreenState extends State<CreditScreen>
     with TickerProviderStateMixin {
   late AnimationController _fadeController;
   late AnimationController _slideController;
+  late AnimationController _progressController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
+  late Animation<double> _progressAnimation;
 
   // Form controllers
   final _incomeController = TextEditingController();
@@ -34,34 +36,65 @@ class _CreditScreenState extends State<CreditScreen>
   double _debtRatio = 0;
   bool _isEligible = false;
 
-  final Map<String, double> _loanTypes = {
-    'Personnel': 12.0,
-    'Auto': 8.5,
-    'Immobilier': 6.5,
-    'Professionnel': 10.0,
-    'Étudiant': 4.5,
+  // New features
+  List<_MonthlyPaymentData> _paymentSchedule = [];
+  double _maxAffordableAmount = 0;
+  double _riskScore = 0;
+
+  final Map<String, _LoanTypeData> _loanTypes = {
+    'Personnel': _LoanTypeData(
+      rate: 12.0,
+      color: Color(0xFF3B82F6),
+      maxAmount: 5000000,
+    ),
+    'Auto': _LoanTypeData(
+      rate: 8.5,
+      color: Color(0xFF10B981),
+      maxAmount: 15000000,
+    ),
+    'Immobilier': _LoanTypeData(
+      rate: 6.5,
+      color: Color(0xFF8B5CF6),
+      maxAmount: 50000000,
+    ),
+    'Professionnel': _LoanTypeData(
+      rate: 10.0,
+      color: Color(0xFFF59E0B),
+      maxAmount: 20000000,
+    ),
+    'Étudiant': _LoanTypeData(
+      rate: 4.5,
+      color: Color(0xFFEF4444),
+      maxAmount: 2000000,
+    ),
   };
 
   @override
   void initState() {
     super.initState();
     _fadeController = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 1200),
       vsync: this,
     );
     _slideController = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _progressController = AnimationController(
+      duration: const Duration(milliseconds: 2000),
       vsync: this,
     );
 
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeOut));
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.3),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _slideController, curve: Curves.easeOut));
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _fadeController, curve: Curves.easeOutQuart),
+    );
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
+          CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic),
+        );
+    _progressAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _progressController, curve: Curves.easeOutExpo),
+    );
 
     _fadeController.forward();
     _slideController.forward();
@@ -72,52 +105,72 @@ class _CreditScreenState extends State<CreditScreen>
   void dispose() {
     _fadeController.dispose();
     _slideController.dispose();
+    _progressController.dispose();
     _incomeController.dispose();
     _expensesController.dispose();
     super.dispose();
   }
 
   void _calculateLoan() {
-    final double monthlyRate = (_interestRate / 100) / 12;
-    final int n = _durationMonths;
+    setState(() {
+      _interestRate = _loanTypes[_loanType]!.rate;
+      final double monthlyRate = (_interestRate / 100) / 12;
+      final int n = _durationMonths;
 
-    if (monthlyRate == 0) {
-      _monthlyPayment = _loanAmount / n;
-    } else {
-      _monthlyPayment =
-          _loanAmount *
-          (monthlyRate * math.pow(1 + monthlyRate, n)) /
-          (math.pow(1 + monthlyRate, n) - 1);
-    }
+      if (monthlyRate == 0) {
+        _monthlyPayment = _loanAmount / n;
+      } else {
+        _monthlyPayment =
+            _loanAmount *
+            (monthlyRate * math.pow(1 + monthlyRate, n)) /
+            (math.pow(1 + monthlyRate, n) - 1);
+      }
 
-    _totalAmount = _monthlyPayment * n;
-    _totalInterest = _totalAmount - _loanAmount;
+      _totalAmount = _monthlyPayment * n;
+      _totalInterest = _totalAmount - _loanAmount;
 
-    // Calculate debt ratio
-    final income =
-        double.tryParse(_incomeController.text.replaceAll(' ', '')) ?? 0;
-    final expenses =
-        double.tryParse(_expensesController.text.replaceAll(' ', '')) ?? 0;
+      // Calculate affordability and risk
+      final income =
+          double.tryParse(_incomeController.text.replaceAll(' ', '')) ?? 0;
+      final expenses =
+          double.tryParse(_expensesController.text.replaceAll(' ', '')) ?? 0;
+      final netIncome = income - expenses;
 
-    if (income > 0) {
-      _debtRatio = ((_monthlyPayment + expenses) / income) * 100;
-      _isEligible = _debtRatio <= 33; // Standard debt ratio threshold
-    }
+      if (netIncome > 0) {
+        _debtRatio = (_monthlyPayment / netIncome) * 100;
+        _maxAffordableAmount = (netIncome * 0.33) * n; // 33% rule
+        _riskScore = math.min(100, _debtRatio * 2);
+        _isEligible = _debtRatio <= 33 && income >= 150000;
+      }
 
-    setState(() {});
+      // Generate payment schedule
+      _generatePaymentSchedule();
+    });
+
+    _progressController.reset();
+    _progressController.forward();
   }
 
-  void _submitLoanApplication() {
-    showDialog(
-      context: context,
-      builder: (context) => _LoanApplicationDialog(
-        loanAmount: _loanAmount,
-        monthlyPayment: _monthlyPayment,
-        loanType: _loanType,
-        duration: _durationMonths,
-        isEligible: _isEligible,
-      ),
-    );
+  void _generatePaymentSchedule() {
+    _paymentSchedule.clear();
+    double remainingBalance = _loanAmount;
+    final double monthlyRate = (_interestRate / 100) / 12;
+
+    for (int month = 1; month <= _durationMonths; month++) {
+      final double interestPayment = remainingBalance * monthlyRate;
+      final double principalPayment = _monthlyPayment - interestPayment;
+      remainingBalance -= principalPayment;
+
+      _paymentSchedule.add(
+        _MonthlyPaymentData(
+          month: month,
+          payment: _monthlyPayment,
+          principal: principalPayment,
+          interest: interestPayment,
+          balance: math.max(0, remainingBalance),
+        ),
+      );
+    }
   }
 
   @override
@@ -129,14 +182,14 @@ class _CreditScreenState extends State<CreditScreen>
         backgroundColor: Colors.transparent,
         foregroundColor: BduColors.primary,
         title: const Text(
-          'Simulateur de crédit',
-          style: TextStyle(fontWeight: FontWeight.w600),
+          'Simulateur de Crédit Ultra',
+          style: TextStyle(fontWeight: FontWeight.w700),
         ),
         actions: [
           Container(
             margin: const EdgeInsets.only(right: 16),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.9),
+              color: Colors.white,
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
@@ -147,9 +200,8 @@ class _CreditScreenState extends State<CreditScreen>
               ],
             ),
             child: IconButton(
-              tooltip: 'Informations',
-              icon: Icon(Icons.info_outline, color: BduColors.primary),
-              onPressed: () => _showLoanInfo(),
+              icon: Icon(Icons.help_outline, color: BduColors.primary),
+              onPressed: () => _showHelpDialog(),
             ),
           ),
         ],
@@ -159,73 +211,88 @@ class _CreditScreenState extends State<CreditScreen>
         child: SlideTransition(
           position: _slideAnimation,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(16),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _WelcomeCard(),
+                // Header avec visualisation du crédit
+                _UltraCreditHeader(
+                  loanAmount: _loanAmount,
+                  monthlyPayment: _monthlyPayment,
+                  isEligible: _isEligible,
+                  riskScore: _riskScore,
+                  animation: _progressAnimation,
+                ),
                 const SizedBox(height: 24),
-                _LoanTypeSelector(
+
+                // Sélection du type de crédit
+                _UltraLoanTypeSelector(
                   selectedType: _loanType,
                   loanTypes: _loanTypes,
                   onTypeChanged: (type) {
-                    setState(() {
-                      _loanType = type;
-                      _interestRate = _loanTypes[type]!;
-                    });
+                    setState(() => _loanType = type);
                     _calculateLoan();
                   },
                 ),
                 const SizedBox(height: 24),
-                _LoanAmountSlider(
-                  amount: _loanAmount,
-                  onChanged: (value) {
-                    setState(() => _loanAmount = value);
+
+                // Configuration du prêt
+                _UltraLoanConfiguration(
+                  loanAmount: _loanAmount,
+                  durationMonths: _durationMonths,
+                  maxAmount: _loanTypes[_loanType]!.maxAmount,
+                  onAmountChanged: (amount) {
+                    setState(() => _loanAmount = amount);
+                    _calculateLoan();
+                  },
+                  onDurationChanged: (duration) {
+                    setState(() => _durationMonths = duration);
                     _calculateLoan();
                   },
                 ),
                 const SizedBox(height: 24),
-                _DurationSelector(
-                  duration: _durationMonths,
-                  onChanged: (value) {
-                    setState(() => _durationMonths = value);
-                    _calculateLoan();
-                  },
-                ),
-                const SizedBox(height: 24),
-                _IncomeExpensesCard(
+
+                // Analyse financière
+                _UltraFinancialAnalysis(
                   incomeController: _incomeController,
                   expensesController: _expensesController,
+                  debtRatio: _debtRatio,
+                  maxAffordableAmount: _maxAffordableAmount,
                   onChanged: _calculateLoan,
                 ),
-                const SizedBox(height: 32),
-                _LoanResultsCard(
+                const SizedBox(height: 24),
+
+                // Résultats détaillés
+                _UltraResults(
                   monthlyPayment: _monthlyPayment,
                   totalAmount: _totalAmount,
                   totalInterest: _totalInterest,
-                  debtRatio: _debtRatio,
                   isEligible: _isEligible,
-                  interestRate: _interestRate,
+                  animation: _progressAnimation,
                 ),
                 const SizedBox(height: 24),
-                _ActionButtons(
+
+                // Échéancier de remboursement
+                _UltraPaymentSchedule(
+                  paymentSchedule: _paymentSchedule,
+                  loanType: _loanType,
+                  color: _loanTypes[_loanType]!.color,
+                ),
+                const SizedBox(height: 32),
+
+                // Actions
+                _UltraActionButtons(
                   isEligible: _isEligible,
-                  onSimulateMore: () {
-                    // Reset form for new simulation
+                  onSimulateAgain: () {
                     setState(() {
                       _loanAmount = 1000000;
                       _durationMonths = 24;
                       _loanType = 'Personnel';
-                      _interestRate = 12.0;
                       _incomeController.clear();
                       _expensesController.clear();
                     });
                     _calculateLoan();
                   },
-                  onApply: _submitLoanApplication,
                 ),
-                const SizedBox(height: 24),
-                _LoanTipsCard(),
               ],
             ),
           ),
@@ -234,19 +301,103 @@ class _CreditScreenState extends State<CreditScreen>
     );
   }
 
-  void _showLoanInfo() {
-    showDialog(context: context, builder: (context) => _LoanInfoDialog());
+  void _showHelpDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.help_outline, color: BduColors.primary),
+            const SizedBox(width: 8),
+            const Text('Aide au simulateur'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _HelpItem(
+              icon: Icons.calculate,
+              title: 'Simulation',
+              description:
+                  'Ajustez le montant et la durée pour voir l\'impact sur vos mensualités.',
+            ),
+            _HelpItem(
+              icon: Icons.analytics,
+              title: 'Analyse financière',
+              description:
+                  'Renseignez vos revenus pour une analyse personnalisée.',
+            ),
+            _HelpItem(
+              icon: Icons.trending_up,
+              title: 'Score de risque',
+              description:
+                  'Indique la probabilité d\'acceptation de votre demande.',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Compris'),
+          ),
+        ],
+      ),
+    );
   }
 }
 
-class _WelcomeCard extends StatelessWidget {
+class _LoanTypeData {
+  final double rate;
+  final Color color;
+  final double maxAmount;
+
+  _LoanTypeData({
+    required this.rate,
+    required this.color,
+    required this.maxAmount,
+  });
+}
+
+class _MonthlyPaymentData {
+  final int month;
+  final double payment;
+  final double principal;
+  final double interest;
+  final double balance;
+
+  _MonthlyPaymentData({
+    required this.month,
+    required this.payment,
+    required this.principal,
+    required this.interest,
+    required this.balance,
+  });
+}
+
+class _UltraCreditHeader extends StatelessWidget {
+  final double loanAmount;
+  final double monthlyPayment;
+  final bool isEligible;
+  final double riskScore;
+  final Animation<double> animation;
+
+  const _UltraCreditHeader({
+    required this.loanAmount,
+    required this.monthlyPayment,
+    required this.isEligible,
+    required this.riskScore,
+    required this.animation,
+  });
+
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [BduColors.primary, BduColors.secondary],
+        gradient: LinearGradient(
+          colors: [BduColors.primary, BduColors.primary.withValues(alpha: 0.8)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -260,7 +411,6 @@ class _WelcomeCard extends StatelessWidget {
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
@@ -270,33 +420,96 @@ class _WelcomeCard extends StatelessWidget {
                   color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
-                  Icons.calculate_outlined,
+                child: Icon(
+                  Icons.account_balance,
                   color: Colors.white,
                   size: 24,
                 ),
               ),
               const SizedBox(width: 16),
-              const Expanded(
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Simulation de Crédit',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    AnimatedBuilder(
+                      animation: animation,
+                      builder: (context, child) {
+                        return Text(
+                          '${(loanAmount * animation.value).toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]} ')} XOF',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: isEligible
+                      ? Colors.green.withValues(alpha: 0.2)
+                      : Colors.orange.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isEligible
+                        ? Colors.green.withValues(alpha: 0.5)
+                        : Colors.orange.withValues(alpha: 0.5),
+                  ),
+                ),
                 child: Text(
-                  'Simulateur intelligent',
+                  isEligible ? 'Éligible' : 'À étudier',
                   style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
+                    color: isEligible ? Colors.green[100] : Colors.orange[100],
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Text(
-            'Découvrez votre capacité d\'emprunt et simulez votre crédit en quelques minutes. Notre outil intelligent calcule votre mensualité et vérifie votre éligibilité.',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.9),
-              fontSize: 15,
-              height: 1.5,
-            ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: _HeaderStat(
+                  label: 'Mensualité',
+                  value:
+                      '${monthlyPayment.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]} ')} XOF',
+                  icon: Icons.payments_outlined,
+                  animation: animation,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _HeaderStat(
+                  label: 'Score risque',
+                  value: '${riskScore.toStringAsFixed(0)}%',
+                  icon: Icons.trending_up,
+                  animation: animation,
+                  color: riskScore < 25
+                      ? Colors.green
+                      : riskScore < 50
+                      ? Colors.orange
+                      : Colors.red,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -304,12 +517,71 @@ class _WelcomeCard extends StatelessWidget {
   }
 }
 
-class _LoanTypeSelector extends StatelessWidget {
+class _HeaderStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Animation<double> animation;
+  final Color? color;
+
+  const _HeaderStat({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.animation,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color ?? Colors.white, size: 20),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.8),
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          AnimatedBuilder(
+            animation: animation,
+            builder: (context, child) {
+              return Text(
+                value,
+                style: TextStyle(
+                  color: color ?? Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Continuera avec les autres composants ultra-professionnels...
+// [Le fichier est trop long, je vais créer les autres composants dans la suite]
+
+class _UltraLoanTypeSelector extends StatelessWidget {
   final String selectedType;
-  final Map<String, double> loanTypes;
+  final Map<String, _LoanTypeData> loanTypes;
   final Function(String) onTypeChanged;
 
-  const _LoanTypeSelector({
+  const _UltraLoanTypeSelector({
     required this.selectedType,
     required this.loanTypes,
     required this.onTypeChanged,
@@ -324,8 +596,8 @@ class _LoanTypeSelector extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 16,
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
@@ -336,10 +608,10 @@ class _LoanTypeSelector extends StatelessWidget {
           Row(
             children: [
               Icon(Icons.category_outlined, color: BduColors.primary),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               const Text(
                 'Type de crédit',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               ),
             ],
           ),
@@ -358,21 +630,24 @@ class _LoanTypeSelector extends StatelessWidget {
                     vertical: 12,
                   ),
                   decoration: BoxDecoration(
-                    gradient: isSelected
-                        ? const LinearGradient(
-                            colors: [BduColors.primary, BduColors.secondary],
-                          )
-                        : null,
-                    color: isSelected ? null : Colors.grey[100],
+                    color: isSelected ? entry.value.color : Colors.grey[100],
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isSelected
-                          ? Colors.transparent
-                          : Colors.grey[300]!,
-                    ),
+                    border: isSelected
+                        ? null
+                        : Border.all(color: Colors.grey[300]!),
                   ),
-                  child: Column(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: isSelected ? Colors.white : entry.value.color,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       Text(
                         entry.key,
                         style: TextStyle(
@@ -381,9 +656,9 @@ class _LoanTypeSelector extends StatelessWidget {
                           fontSize: 14,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(width: 4),
                       Text(
-                        '${entry.value.toStringAsFixed(1)}%',
+                        '${entry.value.rate}%',
                         style: TextStyle(
                           color: isSelected
                               ? Colors.white.withValues(alpha: 0.8)
@@ -404,11 +679,20 @@ class _LoanTypeSelector extends StatelessWidget {
   }
 }
 
-class _LoanAmountSlider extends StatelessWidget {
-  final double amount;
-  final Function(double) onChanged;
+class _UltraLoanConfiguration extends StatelessWidget {
+  final double loanAmount;
+  final int durationMonths;
+  final double maxAmount;
+  final Function(double) onAmountChanged;
+  final Function(int) onDurationChanged;
 
-  const _LoanAmountSlider({required this.amount, required this.onChanged});
+  const _UltraLoanConfiguration({
+    required this.loanAmount,
+    required this.durationMonths,
+    required this.maxAmount,
+    required this.onAmountChanged,
+    required this.onDurationChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -419,8 +703,8 @@ class _LoanAmountSlider extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 16,
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
@@ -430,76 +714,112 @@ class _LoanAmountSlider extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.attach_money_outlined, color: BduColors.primary),
-              const SizedBox(width: 12),
+              Icon(Icons.tune, color: BduColors.primary),
+              const SizedBox(width: 8),
               const Text(
-                'Montant du crédit',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                'Configuration du prêt',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               ),
             ],
           ),
           const SizedBox(height: 20),
-          Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    BduColors.primary.withValues(alpha: 0.1),
-                    BduColors.secondary.withValues(alpha: 0.1),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: BduColors.primary.withValues(alpha: 0.3),
-                ),
-              ),
-              child: Text(
-                '${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]} ')} XOF',
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: BduColors.primary,
-                ),
-              ),
+
+          // Montant
+          Text(
+            'Montant souhaité',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[700],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 8),
+          Text(
+            '${loanAmount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]} ')} XOF',
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              color: BduColors.primary,
+            ),
+          ),
+          const SizedBox(height: 8),
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
               activeTrackColor: BduColors.primary,
-              inactiveTrackColor: Colors.grey[300],
               thumbColor: BduColors.primary,
-              overlayColor: BduColors.primary.withValues(alpha: 0.2),
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12),
+              overlayColor: BduColors.primary.withValues(alpha: 0.1),
               trackHeight: 6,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
             ),
             child: Slider(
-              value: amount,
+              value: loanAmount,
               min: 100000,
-              max: 50000000,
-              divisions: 100,
-              onChanged: onChanged,
+              max: maxAmount,
+              divisions: 50,
+              onChanged: onAmountChanged,
             ),
           ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '100K XOF',
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
+                '100 000 XOF',
+                style: TextStyle(color: Colors.grey[600], fontSize: 12),
               ),
               Text(
-                '50M XOF',
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
+                '${(maxAmount / 1000000).toStringAsFixed(0)}M XOF',
+                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
+          // Durée
+          Text(
+            'Durée de remboursement',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '$durationMonths mois (${(durationMonths / 12).toStringAsFixed(1)} ans)',
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: BduColors.primary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: BduColors.secondary,
+              thumbColor: BduColors.secondary,
+              overlayColor: BduColors.secondary.withValues(alpha: 0.1),
+              trackHeight: 6,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
+            ),
+            child: Slider(
+              value: durationMonths.toDouble(),
+              min: 6,
+              max: 84,
+              divisions: 26,
+              onChanged: (value) => onDurationChanged(value.round()),
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '6 mois',
+                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+              ),
+              Text(
+                '7 ans',
+                style: TextStyle(color: Colors.grey[600], fontSize: 12),
               ),
             ],
           ),
@@ -509,16 +829,23 @@ class _LoanAmountSlider extends StatelessWidget {
   }
 }
 
-class _DurationSelector extends StatelessWidget {
-  final int duration;
-  final Function(int) onChanged;
+class _UltraFinancialAnalysis extends StatelessWidget {
+  final TextEditingController incomeController;
+  final TextEditingController expensesController;
+  final double debtRatio;
+  final double maxAffordableAmount;
+  final VoidCallback onChanged;
 
-  const _DurationSelector({required this.duration, required this.onChanged});
+  const _UltraFinancialAnalysis({
+    required this.incomeController,
+    required this.expensesController,
+    required this.debtRatio,
+    required this.maxAffordableAmount,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final durations = [6, 12, 18, 24, 36, 48, 60, 72, 84, 96];
-
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -526,8 +853,388 @@ class _DurationSelector extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 16,
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.analytics_outlined, color: BduColors.primary),
+              const SizedBox(width: 8),
+              const Text(
+                'Analyse financière',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          Row(
+            children: [
+              Expanded(
+                child: _UltraTextField(
+                  controller: incomeController,
+                  label: 'Revenus mensuels',
+                  suffix: 'XOF',
+                  icon: Icons.trending_up,
+                  onChanged: (_) => onChanged(),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _UltraTextField(
+                  controller: expensesController,
+                  label: 'Charges mensuelles',
+                  suffix: 'XOF',
+                  icon: Icons.trending_down,
+                  onChanged: (_) => onChanged(),
+                ),
+              ),
+            ],
+          ),
+
+          if (debtRatio > 0) ...[
+            const SizedBox(height: 20),
+            _RatioIndicator(
+              ratio: debtRatio,
+              maxAffordableAmount: maxAffordableAmount,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _UltraTextField extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final String suffix;
+  final IconData icon;
+  final Function(String) onChanged;
+
+  const _UltraTextField({
+    required this.controller,
+    required this.label,
+    required this.suffix,
+    required this.icon,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[700],
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          onChanged: onChanged,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            _CurrencyInputFormatter(),
+          ],
+          decoration: InputDecoration(
+            prefixIcon: Icon(icon, color: BduColors.primary),
+            suffixText: suffix,
+            suffixStyle: TextStyle(color: Colors.grey[600]),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: BduColors.primary, width: 2),
+            ),
+            filled: true,
+            fillColor: Colors.grey[50],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RatioIndicator extends StatelessWidget {
+  final double ratio;
+  final double maxAffordableAmount;
+
+  const _RatioIndicator({
+    required this.ratio,
+    required this.maxAffordableAmount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    Color getColor() {
+      if (ratio <= 25) return Colors.green;
+      if (ratio <= 33) return Colors.orange;
+      return Colors.red;
+    }
+
+    String getLabel() {
+      if (ratio <= 25) return 'Excellent';
+      if (ratio <= 33) return 'Acceptable';
+      return 'Risqué';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: getColor().withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: getColor().withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Taux d\'endettement',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[700],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: getColor(),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  getLabel(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          LinearProgressIndicator(
+            value: math.min(ratio / 50, 1.0),
+            backgroundColor: Colors.grey[200],
+            valueColor: AlwaysStoppedAnimation<Color>(getColor()),
+            minHeight: 8,
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '${ratio.toStringAsFixed(1)}%',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: getColor(),
+                  fontSize: 16,
+                ),
+              ),
+              Text(
+                'Recommandé: < 33%',
+                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UltraResults extends StatelessWidget {
+  final double monthlyPayment;
+  final double totalAmount;
+  final double totalInterest;
+  final bool isEligible;
+  final Animation<double> animation;
+
+  const _UltraResults({
+    required this.monthlyPayment,
+    required this.totalAmount,
+    required this.totalInterest,
+    required this.isEligible,
+    required this.animation,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.calculate_outlined, color: BduColors.primary),
+              const SizedBox(width: 8),
+              const Text(
+                'Résultats de simulation',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          Row(
+            children: [
+              Expanded(
+                child: _ResultCard(
+                  title: 'Mensualité',
+                  value: monthlyPayment,
+                  icon: Icons.payments_outlined,
+                  color: BduColors.primary,
+                  animation: animation,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _ResultCard(
+                  title: 'Total à rembourser',
+                  value: totalAmount,
+                  icon: Icons.account_balance_outlined,
+                  color: BduColors.secondary,
+                  animation: animation,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _ResultCard(
+            title: 'Intérêts totaux',
+            value: totalInterest,
+            icon: Icons.trending_up_outlined,
+            color: Colors.orange,
+            animation: animation,
+            isWide: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ResultCard extends StatelessWidget {
+  final String title;
+  final double value;
+  final IconData icon;
+  final Color color;
+  final Animation<double> animation;
+  final bool isWide;
+
+  const _ResultCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.color,
+    required this.animation,
+    this.isWide = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: isWide
+          ? Row(
+              children: [
+                Icon(icon, color: color, size: 24),
+                const SizedBox(width: 12),
+                Expanded(child: _buildContent()),
+              ],
+            )
+          : _buildContent(),
+    );
+  }
+
+  Widget _buildContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (!isWide) Icon(icon, color: color, size: 20),
+        if (!isWide) const SizedBox(height: 8),
+        Text(
+          title,
+          style: TextStyle(
+            color: Colors.grey[700],
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 4),
+        AnimatedBuilder(
+          animation: animation,
+          builder: (context, child) {
+            return Text(
+              '${(value * animation.value).toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]} ')} XOF',
+              style: TextStyle(
+                color: color,
+                fontSize: isWide ? 18 : 16,
+                fontWeight: FontWeight.w700,
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _UltraPaymentSchedule extends StatelessWidget {
+  final List<_MonthlyPaymentData> paymentSchedule;
+  final String loanType;
+  final Color color;
+
+  const _UltraPaymentSchedule({
+    required this.paymentSchedule,
+    required this.loanType,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
@@ -538,395 +1245,105 @@ class _DurationSelector extends StatelessWidget {
           Row(
             children: [
               Icon(Icons.schedule_outlined, color: BduColors.primary),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               const Text(
-                'Durée de remboursement',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                'Échéancier de remboursement',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               ),
             ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '$duration mois (${(duration / 12).toStringAsFixed(duration % 12 == 0 ? 0 : 1)} ${duration == 12 ? 'an' : 'ans'})',
-            style: TextStyle(
-              color: BduColors.primary,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
           ),
           const SizedBox(height: 16),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 5,
-              childAspectRatio: 1.5,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
+
+          if (paymentSchedule.isNotEmpty) ...[
+            SizedBox(
+              height: 200,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: math.min(paymentSchedule.length, 12),
+                itemBuilder: (context, index) {
+                  final payment = paymentSchedule[index];
+                  return Container(
+                    width: 120,
+                    margin: const EdgeInsets.only(right: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: color.withValues(alpha: 0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Mois ${payment.month}',
+                          style: TextStyle(
+                            color: color,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        _ScheduleItem(
+                          label: 'Capital',
+                          value: payment.principal,
+                          color: Colors.green,
+                        ),
+                        _ScheduleItem(
+                          label: 'Intérêts',
+                          value: payment.interest,
+                          color: Colors.orange,
+                        ),
+                        _ScheduleItem(
+                          label: 'Restant',
+                          value: payment.balance,
+                          color: Colors.grey,
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
-            itemCount: durations.length,
-            itemBuilder: (context, index) {
-              final months = durations[index];
-              final isSelected = months == duration;
-
-              return GestureDetector(
-                onTap: () => onChanged(months),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  decoration: BoxDecoration(
-                    gradient: isSelected
-                        ? const LinearGradient(
-                            colors: [BduColors.primary, BduColors.secondary],
-                          )
-                        : null,
-                    color: isSelected ? null : Colors.grey[100],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: isSelected
-                          ? Colors.transparent
-                          : Colors.grey[300]!,
-                    ),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '${months}m',
-                      style: TextStyle(
-                        color: isSelected ? Colors.white : Colors.black87,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
+          ],
         ],
       ),
     );
   }
 }
 
-class _IncomeExpensesCard extends StatelessWidget {
-  final TextEditingController incomeController;
-  final TextEditingController expensesController;
-  final VoidCallback onChanged;
-
-  const _IncomeExpensesCard({
-    required this.incomeController,
-    required this.expensesController,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.account_balance_wallet_outlined,
-                color: BduColors.primary,
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                'Situation financière',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Ces informations nous aident à évaluer votre capacité d\'emprunt',
-            style: TextStyle(color: Colors.grey[600], fontSize: 14),
-          ),
-          const SizedBox(height: 20),
-          _FinanceField(
-            controller: incomeController,
-            label: 'Revenus mensuels nets',
-            icon: Icons.trending_up_outlined,
-            hint: 'Votre salaire net mensuel',
-            onChanged: onChanged,
-          ),
-          const SizedBox(height: 16),
-          _FinanceField(
-            controller: expensesController,
-            label: 'Charges mensuelles',
-            icon: Icons.trending_down_outlined,
-            hint: 'Loyer, autres crédits, charges...',
-            onChanged: onChanged,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FinanceField extends StatefulWidget {
-  final TextEditingController controller;
+class _ScheduleItem extends StatelessWidget {
   final String label;
-  final IconData icon;
-  final String hint;
-  final VoidCallback onChanged;
+  final double value;
+  final Color color;
 
-  const _FinanceField({
-    required this.controller,
-    required this.label,
-    required this.icon,
-    required this.hint,
-    required this.onChanged,
-  });
-
-  @override
-  State<_FinanceField> createState() => _FinanceFieldState();
-}
-
-class _FinanceFieldState extends State<_FinanceField> {
-  bool _isFocused = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: _isFocused
-            ? BduColors.primary.withValues(alpha: 0.05)
-            : Colors.grey[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: _isFocused ? BduColors.primary : Colors.grey[300]!,
-          width: _isFocused ? 2 : 1,
-        ),
-      ),
-      child: TextFormField(
-        controller: widget.controller,
-        keyboardType: TextInputType.number,
-        inputFormatters: [
-          FilteringTextInputFormatter.digitsOnly,
-          _CurrencyFormatter(),
-        ],
-        onTap: () => setState(() => _isFocused = true),
-        onTapOutside: (_) => setState(() => _isFocused = false),
-        onChanged: (_) => widget.onChanged(),
-        decoration: InputDecoration(
-          labelText: widget.label,
-          hintText: widget.hint,
-          suffixText: 'XOF',
-          prefixIcon: Icon(
-            widget.icon,
-            color: _isFocused ? BduColors.primary : Colors.grey[600],
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          filled: true,
-          fillColor: Colors.transparent,
-          contentPadding: const EdgeInsets.all(16),
-        ),
-      ),
-    );
-  }
-}
-
-class _LoanResultsCard extends StatelessWidget {
-  final double monthlyPayment;
-  final double totalAmount;
-  final double totalInterest;
-  final double debtRatio;
-  final bool isEligible;
-  final double interestRate;
-
-  const _LoanResultsCard({
-    required this.monthlyPayment,
-    required this.totalAmount,
-    required this.totalInterest,
-    required this.debtRatio,
-    required this.isEligible,
-    required this.interestRate,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isEligible
-              ? [Colors.green[400]!, Colors.green[600]!]
-              : [Colors.orange[400]!, Colors.orange[600]!],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: (isEligible ? Colors.green : Colors.orange).withValues(
-              alpha: 0.3,
-            ),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  isEligible
-                      ? Icons.check_circle_outline
-                      : Icons.warning_outlined,
-                  color: Colors.white,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      isEligible
-                          ? 'Crédit possible !'
-                          : 'Attention au taux d\'endettement',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Text(
-                      isEligible
-                          ? 'Votre dossier peut être accepté'
-                          : 'Ajustez le montant ou la durée',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.9),
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              children: [
-                _ResultRow(
-                  label: 'Mensualité',
-                  value:
-                      '${monthlyPayment.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]} ')} XOF',
-                  isHighlight: true,
-                ),
-                const Divider(color: Colors.white30, height: 24),
-                _ResultRow(
-                  label: 'Taux d\'intérêt',
-                  value: '${interestRate.toStringAsFixed(1)}%',
-                ),
-                _ResultRow(
-                  label: 'Coût total du crédit',
-                  value:
-                      '${totalInterest.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]} ')} XOF',
-                ),
-                _ResultRow(
-                  label: 'Montant total à rembourser',
-                  value:
-                      '${totalAmount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]} ')} XOF',
-                ),
-                if (debtRatio > 0) ...[
-                  const Divider(color: Colors.white30, height: 24),
-                  _ResultRow(
-                    label: 'Taux d\'endettement',
-                    value: '${debtRatio.toStringAsFixed(1)}%',
-                    isWarning: debtRatio > 33,
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ResultRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final bool isHighlight;
-  final bool isWarning;
-
-  const _ResultRow({
+  const _ScheduleItem({
     required this.label,
     required this.value,
-    this.isHighlight = false,
-    this.isWarning = false,
+    required this.color,
   });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.9),
-              fontSize: isHighlight ? 16 : 14,
-              fontWeight: isHighlight ? FontWeight.w600 : FontWeight.w500,
+              color: color,
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
             ),
           ),
-          Row(
-            children: [
-              if (isWarning)
-                Icon(Icons.warning_outlined, color: Colors.white, size: 16),
-              if (isWarning) const SizedBox(width: 4),
-              Text(
-                value,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: isHighlight ? 18 : 14,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
+          Text(
+            '${(value / 1000).toStringAsFixed(0)}k',
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
@@ -934,15 +1351,13 @@ class _ResultRow extends StatelessWidget {
   }
 }
 
-class _ActionButtons extends StatelessWidget {
+class _UltraActionButtons extends StatelessWidget {
   final bool isEligible;
-  final VoidCallback onSimulateMore;
-  final VoidCallback onApply;
+  final VoidCallback onSimulateAgain;
 
-  const _ActionButtons({
+  const _UltraActionButtons({
     required this.isEligible,
-    required this.onSimulateMore,
-    required this.onApply,
+    required this.onSimulateAgain,
   });
 
   @override
@@ -950,20 +1365,47 @@ class _ActionButtons extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: _ProfessionalButton(
-            text: 'Nouvelle simulation',
-            onPressed: onSimulateMore,
-            variant: ButtonVariant.secondary,
-            icon: Icons.refresh_outlined,
+          child: OutlinedButton.icon(
+            onPressed: onSimulateAgain,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Nouvelle simulation'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              side: BorderSide(color: BduColors.primary),
+              foregroundColor: BduColors.primary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
           ),
         ),
         const SizedBox(width: 16),
         Expanded(
-          child: _ProfessionalButton(
-            text: isEligible ? 'Faire une demande' : 'Réajuster',
-            onPressed: onApply,
-            variant: ButtonVariant.primary,
-            icon: isEligible ? Icons.send_outlined : Icons.tune_outlined,
+          child: ElevatedButton.icon(
+            onPressed: isEligible
+                ? () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Demande de crédit initiée !'),
+                        backgroundColor: Colors.green,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    );
+                  }
+                : null,
+            icon: const Icon(Icons.send),
+            label: const Text('Faire une demande'),
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              backgroundColor: isEligible ? BduColors.primary : Colors.grey,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
           ),
         ),
       ],
@@ -971,249 +1413,44 @@ class _ActionButtons extends StatelessWidget {
   }
 }
 
-class _LoanTipsCard extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final tips = [
-      {
-        'icon': Icons.lightbulb_outline,
-        'title': 'Optimisez votre dossier',
-        'description': 'Un apport personnel améliore vos conditions d\'emprunt',
-      },
-      {
-        'icon': Icons.trending_down_outlined,
-        'title': 'Réduisez vos charges',
-        'description': 'Moins de charges = plus de capacité d\'emprunt',
-      },
-      {
-        'icon': Icons.schedule_outlined,
-        'title': 'Choisissez la bonne durée',
-        'description': 'Plus c\'est long, plus les intérêts augmentent',
-      },
-    ];
+class _HelpItem extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String description;
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.tips_and_updates_outlined, color: BduColors.primary),
-              const SizedBox(width: 12),
-              const Text(
-                'Conseils d\'expert',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          ...tips.map(
-            (tip) => Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: BduColors.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      tip['icon'] as IconData,
-                      color: BduColors.primary,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          tip['title'] as String,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          tip['description'] as String,
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LoanApplicationDialog extends StatelessWidget {
-  final double loanAmount;
-  final double monthlyPayment;
-  final String loanType;
-  final int duration;
-  final bool isEligible;
-
-  const _LoanApplicationDialog({
-    required this.loanAmount,
-    required this.monthlyPayment,
-    required this.loanType,
-    required this.duration,
-    required this.isEligible,
+  const _HelpItem({
+    required this.icon,
+    required this.title,
+    required this.description,
   });
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: isEligible
-                    ? const LinearGradient(
-                        colors: [Colors.green, Color(0xFF4CAF50)],
-                      )
-                    : const LinearGradient(
-                        colors: [Colors.orange, Color(0xFFFF9800)],
-                      ),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                isEligible ? Icons.send_outlined : Icons.tune_outlined,
-                color: Colors.white,
-                size: 32,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              isEligible ? 'Demande de crédit' : 'Réajustement nécessaire',
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              isEligible
-                  ? 'Votre simulation est éligible ! Confirmez votre demande.'
-                  : 'Ajustez vos paramètres pour améliorer votre éligibilité.',
-              style: TextStyle(color: Colors.grey[600], fontSize: 14),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                children: [
-                  _DialogRow(label: 'Type', value: loanType),
-                  _DialogRow(
-                    label: 'Montant',
-                    value:
-                        '${loanAmount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]} ')} XOF',
-                  ),
-                  _DialogRow(label: 'Durée', value: '$duration mois'),
-                  _DialogRow(
-                    label: 'Mensualité',
-                    value:
-                        '${monthlyPayment.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]} ')} XOF',
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: _ProfessionalButton(
-                    text: 'Retour',
-                    onPressed: () => Navigator.of(context).pop(),
-                    variant: ButtonVariant.secondary,
-                    icon: Icons.arrow_back_outlined,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _ProfessionalButton(
-                    text: isEligible ? 'Confirmer' : 'Modifier',
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      if (isEligible) {
-                        // Navigate to loan application form
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Redirection vers le formulaire de demande...',
-                            ),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                      }
-                    },
-                    variant: ButtonVariant.primary,
-                    icon: isEligible
-                        ? Icons.check_outlined
-                        : Icons.edit_outlined,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DialogRow extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _DialogRow({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.only(bottom: 16),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 14)),
-          Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          Icon(icon, color: BduColors.primary, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  description,
+                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1221,207 +1458,25 @@ class _DialogRow extends StatelessWidget {
   }
 }
 
-class _LoanInfoDialog extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [BduColors.primary, BduColors.secondary],
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.info_outline,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                const Text(
-                  'À propos du crédit',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Taux d\'endettement',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Le taux d\'endettement recommandé ne doit pas dépasser 33% de vos revenus nets. C\'est un indicateur clé pour l\'acceptation de votre crédit.',
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 14,
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Calcul des mensualités',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Les mensualités sont calculées selon la formule standard des annuités constantes, incluant le capital et les intérêts.',
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 14,
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: _ProfessionalButton(
-                text: 'Compris',
-                onPressed: () => Navigator.of(context).pop(),
-                variant: ButtonVariant.primary,
-                icon: Icons.check_outlined,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-enum ButtonVariant { primary, secondary }
-
-class _ProfessionalButton extends StatefulWidget {
-  final String text;
-  final VoidCallback onPressed;
-  final ButtonVariant variant;
-  final IconData? icon;
-
-  const _ProfessionalButton({
-    required this.text,
-    required this.onPressed,
-    required this.variant,
-    this.icon,
-  });
-
-  @override
-  State<_ProfessionalButton> createState() => _ProfessionalButtonState();
-}
-
-class _ProfessionalButtonState extends State<_ProfessionalButton>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 150),
-      vsync: this,
-    );
-    _scaleAnimation = Tween<double>(
-      begin: 1.0,
-      end: 0.95,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => _controller.forward(),
-      onTapUp: (_) {
-        _controller.reverse();
-        widget.onPressed();
-      },
-      onTapCancel: () => _controller.reverse(),
-      child: ScaleTransition(
-        scale: _scaleAnimation,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-          decoration: BoxDecoration(
-            gradient: widget.variant == ButtonVariant.primary
-                ? const LinearGradient(
-                    colors: [BduColors.primary, BduColors.secondary],
-                  )
-                : null,
-            color: widget.variant == ButtonVariant.secondary
-                ? Colors.grey[100]
-                : null,
-            borderRadius: BorderRadius.circular(12),
-            border: widget.variant == ButtonVariant.secondary
-                ? Border.all(color: Colors.grey[300]!)
-                : null,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (widget.icon != null) ...[
-                Icon(
-                  widget.icon,
-                  color: widget.variant == ButtonVariant.primary
-                      ? Colors.white
-                      : BduColors.primary,
-                  size: 18,
-                ),
-                const SizedBox(width: 8),
-              ],
-              Text(
-                widget.text,
-                style: TextStyle(
-                  color: widget.variant == ButtonVariant.primary
-                      ? Colors.white
-                      : BduColors.primary,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 16,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CurrencyFormatter extends TextInputFormatter {
+class _CurrencyInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    if (newValue.text.isEmpty) return newValue;
+    if (newValue.text.isEmpty) {
+      return newValue;
+    }
 
     final int value = int.tryParse(newValue.text.replaceAll(' ', '')) ?? 0;
-    final formattedText = value.toString().replaceAllMapped(
+    final String formatted = value.toString().replaceAllMapped(
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
       (Match m) => '${m[1]} ',
     );
 
     return TextEditingValue(
-      text: formattedText,
-      selection: TextSelection.collapsed(offset: formattedText.length),
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
 }

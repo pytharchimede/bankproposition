@@ -129,7 +129,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             children: [
               // Carrousel de comptes avec design professionnel
               SizedBox(
-                height: 280,
+                height: 320,
                 child: PageView.builder(
                   controller: PageController(viewportFraction: 0.88),
                   onPageChanged: (i) => setState(() => _currentAccount = i),
@@ -1047,7 +1047,7 @@ class _ProfessionalAccountCardState extends State<_ProfessionalAccountCard>
                 // Détails du compte
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(16),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
@@ -1061,7 +1061,7 @@ class _ProfessionalAccountCardState extends State<_ProfessionalAccountCard>
                           label: 'Solde disponible',
                           value: widget.hideBalance
                               ? '•••••••• XOF'
-                              : '${widget.account.availableBalance.toStringAsFixed(2).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]} ')} XOF',
+                              : '${widget.account.availableBalance.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]} ')} XOF',
                         ),
                         _AccountDetailRow(
                           icon: Icons.schedule_outlined,
@@ -1102,14 +1102,14 @@ class _AccountDetailRow extends StatelessWidget {
     return Row(
       children: [
         Container(
-          padding: const EdgeInsets.all(6),
+          padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
             color: BduColors.primary.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(6),
           ),
-          child: Icon(icon, color: BduColors.primary, size: 16),
+          child: Icon(icon, color: BduColors.primary, size: 14),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1119,21 +1119,21 @@ class _AccountDetailRow extends StatelessWidget {
                 label,
                 style: TextStyle(
                   color: Colors.grey[600],
-                  fontSize: 11,
+                  fontSize: 10,
                   fontWeight: FontWeight.w500,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 1),
               Text(
                 value,
                 style: const TextStyle(
                   color: Colors.black87,
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),
-                maxLines: 2,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
             ],

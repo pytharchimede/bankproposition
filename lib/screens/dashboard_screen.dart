@@ -554,10 +554,16 @@ class _EnhancedQuickActions extends StatelessWidget {
             onTap: () => Navigator.pushNamed(context, '/chequebook'),
           ),
           _EnhancedQuickButton(
-            icon: Icons.shield_outlined,
-            label: 'Assurance',
+            icon: Icons.location_on_outlined,
+            label: 'Agences',
             colors: const [Color(0xFF469C23), Color(0xFF2E6A17)],
-            onTap: () => Navigator.pushNamed(context, '/insurance'),
+            onTap: () => Navigator.pushNamed(context, '/agencies'),
+          ),
+          _EnhancedQuickButton(
+            icon: Icons.headset_mic_outlined,
+            label: 'Conseiller',
+            colors: const [Color(0xFF8B5CF6), Color(0xFF7C3AED)],
+            onTap: () => Navigator.pushNamed(context, '/contact-advisor'),
           ),
         ];
 
@@ -1047,7 +1053,7 @@ class _ProfessionalAccountCardState extends State<_ProfessionalAccountCard>
                 // Détails du compte
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(12),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
@@ -1058,20 +1064,15 @@ class _ProfessionalAccountCardState extends State<_ProfessionalAccountCard>
                         ),
                         _AccountDetailRow(
                           icon: Icons.account_balance_wallet_outlined,
-                          label: 'Solde disponible',
+                          label: 'Disponible',
                           value: widget.hideBalance
-                              ? '•••••••• XOF'
+                              ? '••••••••'
                               : '${widget.account.availableBalance.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]} ')} XOF',
                         ),
                         _AccountDetailRow(
                           icon: Icons.schedule_outlined,
                           label: 'Dernière opération',
                           value: widget.account.lastTransaction,
-                        ),
-                        _AccountDetailRow(
-                          icon: Icons.date_range_outlined,
-                          label: 'Ouvert le',
-                          value: widget.account.openedDate,
                         ),
                       ],
                     ),
@@ -1102,14 +1103,14 @@ class _AccountDetailRow extends StatelessWidget {
     return Row(
       children: [
         Container(
-          padding: const EdgeInsets.all(4),
+          padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(
             color: BduColors.primary.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(4),
           ),
-          child: Icon(icon, color: BduColors.primary, size: 14),
+          child: Icon(icon, color: BduColors.primary, size: 12),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 8),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1119,18 +1120,17 @@ class _AccountDetailRow extends StatelessWidget {
                 label,
                 style: TextStyle(
                   color: Colors.grey[600],
-                  fontSize: 10,
+                  fontSize: 9,
                   fontWeight: FontWeight.w500,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 1),
               Text(
                 value,
                 style: const TextStyle(
                   color: Colors.black87,
-                  fontSize: 11,
+                  fontSize: 10,
                   fontWeight: FontWeight.w600,
                 ),
                 maxLines: 1,

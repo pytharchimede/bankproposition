@@ -12,6 +12,8 @@ import 'screens/savings_screen.dart';
 import 'screens/credit_screen.dart';
 import 'screens/insurance_screen.dart';
 import 'screens/chequebook_request_screen.dart';
+import 'screens/agency_map_screen.dart';
+import 'screens/contact_advisor_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -41,6 +43,8 @@ class MyApp extends StatelessWidget {
         '/credit': (context) => const CreditScreen(),
         '/insurance': (context) => const InsuranceScreen(),
         '/chequebook': (context) => const ChequebookRequestScreen(),
+        '/agencies': (context) => const AgencyMapScreen(),
+        '/contact-advisor': (context) => const ContactAdvisorScreen(),
       },
     );
   }

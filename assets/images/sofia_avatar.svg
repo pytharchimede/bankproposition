@@ -1,0 +1,6 @@
+<!-- SVG placeholder for Sofia avatar -->
+<svg width="80" height="80" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="40" cy="40" r="40" fill="#8B5CF6"/>
+  <circle cx="40" cy="30" r="12" fill="white"/>
+  <path d="M20 65 Q 40 50 60 65" stroke="white" stroke-width="8" fill="white"/>
+</svg>

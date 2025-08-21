@@ -8,6 +8,10 @@ import 'screens/transfer_wizard.dart';
 import 'screens/claims_page.dart';
 import 'screens/cards_page.dart';
 import 'screens/backoffice_kyc.dart';
+import 'screens/savings_screen.dart';
+import 'screens/credit_screen.dart';
+import 'screens/insurance_screen.dart';
+import 'screens/chequebook_request_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -21,6 +25,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'BDU Mobile',
       theme: BduTheme.light,
+      debugShowCheckedModeBanner: false,
       initialRoute: '/',
       routes: {
         '/': (context) => const OnboardingScreen(),
@@ -32,6 +37,10 @@ class MyApp extends StatelessWidget {
         '/claims': (context) => const ClaimsPage(),
         '/cards': (context) => const CardsPage(),
         '/backoffice/kyc': (context) => const BackofficeKYC(),
+        '/savings': (context) => const SavingsScreen(),
+        '/credit': (context) => const CreditScreen(),
+        '/insurance': (context) => const InsuranceScreen(),
+        '/chequebook': (context) => const ChequebookRequestScreen(),
       },
     );
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -93,6 +94,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ).showSnackBar(SnackBar(content: Text('Action: $action')));
               }
             },
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Dépenses 30 jours',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 180,
+            child: LineChart(
+              LineChartData(
+                gridData: FlGridData(show: false),
+                titlesData: FlTitlesData(show: false),
+                borderData: FlBorderData(show: false),
+                lineBarsData: [
+                  LineChartBarData(
+                    isCurved: true,
+                    color: BduColors.primary,
+                    barWidth: 3,
+                    dotData: FlDotData(show: false),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: BduColors.primary.withValues(alpha: 0.08),
+                    ),
+                    spots: const [
+                      FlSpot(0, 2),
+                      FlSpot(1, 2.2),
+                      FlSpot(2, 1.8),
+                      FlSpot(3, 2.6),
+                      FlSpot(4, 2.1),
+                      FlSpot(5, 2.9),
+                      FlSpot(6, 2.4),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 24),
           Text('Mes cartes', style: Theme.of(context).textTheme.titleLarge),
@@ -231,41 +269,57 @@ class _QuickActions extends StatelessWidget {
           _QuickButton(
             icon: Icons.swap_horiz,
             label: 'Virement',
-            color: BduColors.primary,
-            onTap: () => onAction('virement'),
+            colors: const [Color(0xFF25579A), Color(0xFF2E6AAE)],
+            onTap: () => Navigator.pushNamed(context, '/transfer-wizard'),
           ),
           _QuickButton(
             icon: Icons.savings_outlined,
             label: 'Épargne',
-            color: BduColors.secondary,
-            onTap: () => onAction('epargne'),
+            colors: const [Color(0xFF469C23), Color(0xFF57B42B)],
+            onTap: () => Navigator.pushNamed(context, '/savings'),
           ),
           _QuickButton(
             icon: Icons.credit_score_outlined,
             label: 'Crédit',
-            color: BduColors.primary,
-            onTap: () => onAction('credit'),
+            colors: const [Color(0xFF25579A), Color(0xFF1B3E6F)],
+            onTap: () => Navigator.pushNamed(context, '/credit'),
+          ),
+          _QuickButton(
+            icon: Icons.receipt_long_outlined,
+            label: 'Chéquier',
+            colors: const [Color(0xFF1B3E6F), Color(0xFF25579A)],
+            onTap: () => Navigator.pushNamed(context, '/chequebook'),
           ),
           _QuickButton(
             icon: Icons.shield_outlined,
             label: 'Assurance',
-            color: BduColors.secondary,
-            onTap: () => onAction('assurance'),
+            colors: const [Color(0xFF469C23), Color(0xFF2E6A17)],
+            onTap: () => Navigator.pushNamed(context, '/insurance'),
           ),
         ];
         if (isTight) {
+          const gap = 12.0;
           return Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: gap,
+            runSpacing: gap,
             children: children
                 .map(
-                  (c) =>
-                      SizedBox(width: (constraints.maxWidth - 8) / 2, child: c),
+                  (c) => SizedBox(
+                    width: (constraints.maxWidth - gap) / 2,
+                    child: c,
+                  ),
                 )
                 .toList(),
           );
         }
-        return Row(children: children.map((c) => Expanded(child: c)).toList());
+        final rowChildren = <Widget>[];
+        for (var i = 0; i < children.length; i++) {
+          rowChildren.add(Expanded(child: children[i]));
+          if (i != children.length - 1) {
+            rowChildren.add(const SizedBox(width: 12));
+          }
+        }
+        return Row(children: rowChildren);
       },
     );
   }
@@ -274,41 +328,58 @@ class _QuickActions extends StatelessWidget {
 class _QuickButton extends StatelessWidget {
   final IconData icon;
   final String label;
-  final Color color;
+  final List<Color> colors;
   final VoidCallback onTap;
   const _QuickButton({
     required this.icon,
     required this.label,
-    required this.color,
+    required this.colors,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black12,
-                blurRadius: 6,
-                offset: Offset(0, 2),
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 56),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: LinearGradient(
+            colors: colors,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 10,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(width: 4),
+            Icon(icon, color: Colors.white),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                softWrap: false,
               ),
-            ],
-          ),
-          child: Column(
-            children: [
-              Icon(icon, color: color),
-              const SizedBox(height: 6),
-              Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-            ],
-          ),
+            ),
+            const SizedBox(width: 4),
+          ],
         ),
       ),
     );

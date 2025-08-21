@@ -9,7 +9,7 @@ class ProfileScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Profil')),
       body: ListView(
-        children: const [
+        children: [
           _ProfileTile(
             icon: Icons.web,
             title: 'Web Banking',
@@ -25,8 +25,59 @@ class ProfileScreen extends StatelessWidget {
             title: 'SMS Banking',
             subtitle: 'Alertes et notifications',
           ),
-          Divider(height: 1),
+          const Divider(height: 1),
           ListTile(
+            leading: const Icon(
+              Icons.people_alt_outlined,
+              color: BduColors.primary,
+            ),
+            title: const Text('Bénéficiaires'),
+            subtitle: const Text('Gérer vos bénéficiaires'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.pushNamed(context, '/beneficiaries'),
+          ),
+          ListTile(
+            leading: const Icon(
+              Icons.swap_horizontal_circle_outlined,
+              color: BduColors.primary,
+            ),
+            title: const Text('Virement (Assistant)'),
+            subtitle: const Text(
+              'Étapes: Détails -> Bénéficiaire -> Récapitulatif -> OTP -> Reçu',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.pushNamed(context, '/transfer-wizard'),
+          ),
+          ListTile(
+            leading: const Icon(
+              Icons.receipt_long_outlined,
+              color: BduColors.primary,
+            ),
+            title: const Text('Réclamations'),
+            subtitle: const Text('Ouvrir et suivre vos tickets'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.pushNamed(context, '/claims'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.credit_card, color: BduColors.primary),
+            title: const Text('Cartes'),
+            subtitle: const Text('Gestion des cartes'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.pushNamed(context, '/cards'),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(
+              Icons.verified_user_outlined,
+              color: BduColors.primary,
+            ),
+            title: const Text('Back-Office KYC (démo)'),
+            subtitle: const Text('Examen KYC, actions et audit'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.pushNamed(context, '/backoffice/kyc'),
+          ),
+          const Divider(height: 1),
+          const ListTile(
             leading: Icon(Icons.support_agent, color: BduColors.primary),
             title: Text('Contacter mon conseiller'),
             subtitle: Text('+225 XX XX XX XX'),

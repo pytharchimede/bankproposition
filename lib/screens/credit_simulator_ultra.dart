@@ -15,19 +15,35 @@ class _CreditSimulatorUltraState extends State<CreditSimulatorUltra>
   late AnimationController _fadeController;
   late AnimationController _slideController;
   late AnimationController _progressController;
+  late AnimationController _rotationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
   late Animation<double> _progressAnimation;
+  late Animation<double> _rotationAnimation;
 
   // Form controllers
   final _incomeController = TextEditingController();
   final _expensesController = TextEditingController();
+  final _savingsController = TextEditingController();
+  final _existingLoansController = TextEditingController();
 
-  // Simulation data
+  // ULTRA Simulation data avec plus de paramètres
   double _loanAmount = 1000000;
   int _durationMonths = 24;
   String _loanType = 'Personnel';
   double _interestRate = 12.0;
+  double _monthlyIncome = 0;
+  double _monthlyExpenses = 0;
+  double _existingSavings = 0;
+  double _existingLoans = 0;
+
+  // ULTRA Features - Analyse avancée
+  String _employmentType = 'CDI';
+  int _workExperience = 1;
+  String _sector = 'Privé';
+  double _creditScore = 750;
+  bool _hasCollateral = false;
+  double _collateralValue = 0;
 
   // Results
   double _monthlyPayment = 0;
@@ -84,6 +100,10 @@ class _CreditSimulatorUltraState extends State<CreditSimulatorUltra>
       duration: const Duration(milliseconds: 2000),
       vsync: this,
     );
+    _rotationController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
 
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _fadeController, curve: Curves.easeOutQuart),
@@ -95,9 +115,13 @@ class _CreditSimulatorUltraState extends State<CreditSimulatorUltra>
     _progressAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _progressController, curve: Curves.easeOutExpo),
     );
+    _rotationAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _rotationController, curve: Curves.elasticOut),
+    );
 
     _fadeController.forward();
     _slideController.forward();
+    _rotationController.repeat();
     _calculateLoan();
   }
 
@@ -106,8 +130,11 @@ class _CreditSimulatorUltraState extends State<CreditSimulatorUltra>
     _fadeController.dispose();
     _slideController.dispose();
     _progressController.dispose();
+    _rotationController.dispose();
     _incomeController.dispose();
     _expensesController.dispose();
+    _savingsController.dispose();
+    _existingLoansController.dispose();
     super.dispose();
   }
 
@@ -181,9 +208,26 @@ class _CreditSimulatorUltraState extends State<CreditSimulatorUltra>
         elevation: 0,
         backgroundColor: Colors.transparent,
         foregroundColor: BduColors.primary,
-        title: const Text(
-          'Simulateur de Crédit Ultra',
-          style: TextStyle(fontWeight: FontWeight.w700),
+        title: Row(
+          children: [
+            RotationTransition(
+              turns: _rotationAnimation,
+              child: Icon(
+                Icons.auto_awesome,
+                color: BduColors.primary,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              'Simulateur ULTRA AI',
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 18,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
         ),
         actions: [
           Container(
@@ -214,6 +258,88 @@ class _CreditSimulatorUltraState extends State<CreditSimulatorUltra>
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
+                // ULTRA AI Banner
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  margin: const EdgeInsets.only(bottom: 24),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.purple.shade600,
+                        Colors.blue.shade600,
+                        BduColors.primary,
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.purple.withValues(alpha: 0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          RotationTransition(
+                            turns: _rotationAnimation,
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.psychology,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'IA ULTRA AVANCÉE',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 1.2,
+                                  ),
+                                ),
+                                Text(
+                                  'Analyse prédictive & scoring personnalisé',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      LinearProgressIndicator(
+                        value: _progressAnimation.value,
+                        backgroundColor: Colors.white.withValues(alpha: 0.3),
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          Colors.white,
+                        ),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ],
+                  ),
+                ),
+
                 // Header avec visualisation du crédit
                 _UltraCreditHeader(
                   loanAmount: _loanAmount,

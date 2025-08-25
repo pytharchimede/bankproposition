@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import '../theme.dart';
 import 'dashboard_screen.dart';
 import 'transactions_screen.dart';
-import 'transfer_screen.dart';
-import 'simulator_screen.dart';
+import 'transfer_wizard.dart';
+import 'credit_simulator_ultra.dart';
 import 'profile_screen.dart';
 
 class AppShell extends StatefulWidget {
@@ -19,8 +19,8 @@ class _AppShellState extends State<AppShell> {
   final _pages = [
     DashboardScreen(),
     TransactionsScreen(),
-    TransferScreen(),
-    SimulatorScreen(),
+    TransferWizard(),
+    CreditSimulatorUltra(),
     ProfileScreen(),
   ];
 
